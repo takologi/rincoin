@@ -29,12 +29,12 @@ import socket
 import struct
 import time
 
-import litecoin_scrypt
+from argon2.low_level import hash_secret_raw, Type
 from test_framework.siphash import siphash256
 from test_framework.util import hex_str_to_bytes, assert_equal
 
 MIN_VERSION_SUPPORTED = 60001
-MY_VERSION = 70017  # past wtxid relay
+MY_VERSION = 70018  # customized-halving enforcement release
 MY_SUBVERSION = b"/python-p2p-tester:0.0.3/"
 MY_RELAY = 1 # from version 70001 onwards, fRelay should be appended to version messages (BIP37)
 
@@ -85,6 +85,20 @@ def sha256(s):
 
 def hash256(s):
     return sha256(sha256(s))
+
+
+def rinhash256(s):
+    blake_out = BLAKE3.blake3(s).digest(length=32)
+    argon_out = hash_secret_raw(
+        secret=blake_out,
+        salt=b"RinCoinSalt",
+        time_cost=2,
+        memory_cost=64,
+        parallelism=1,
+        hash_len=32,
+        type=Type.D,
+    )
+    return hashlib.sha3_256(argon_out).digest()
 
 def ser_compact_size(l):
     r = b""
@@ -761,9 +775,10 @@ class CBlockHeader:
             r += struct.pack("<I", self.nTime)
             r += struct.pack("<I", self.nBits)
             r += struct.pack("<I", self.nNonce)
-            self.sha256 = uint256_from_str(hash256(r))
-            self.hash = encode(hash256(r)[::-1], 'hex_codec').decode('ascii')
-            self.scrypt256 = uint256_from_str(litecoin_scrypt.getPoWHash(r))
+            pow_hash = rinhash256(r)
+            self.sha256 = uint256_from_str(pow_hash)
+            self.hash = encode(pow_hash[::-1], 'hex_codec').decode('ascii')
+            self.scrypt256 = uint256_from_str(pow_hash)
 
     def rehash(self):
         self.sha256 = None

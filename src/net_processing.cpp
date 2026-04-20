@@ -230,6 +230,29 @@ namespace {
     std::unique_ptr<CRollingBloomFilter> recentRejects GUARDED_BY(cs_main);
     uint256 hashRecentRejectsChainTip GUARDED_BY(cs_main);
 
+    static int CurrentChainHeightForPeerChecks() EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+    {
+        const CBlockIndex* tip = ::ChainActive().Tip();
+        return tip ? tip->nHeight : -1;
+    }
+
+    static int NextBlockHeightForPeerChecks() EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+    {
+        return CurrentChainHeightForPeerChecks() + 1;
+    }
+
+    static bool CustomizedHalvingEnforcedOnActiveChain(const Consensus::Params& consensusParams) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+    {
+        return consensusParams.HasCustomizedHalvingSchedule() &&
+               CurrentChainHeightForPeerChecks() >= consensusParams.nCustomizedHalvingPhase4StartHeight;
+    }
+
+    static bool PeerIsObsoleteForCustomizedHalving(const int peer_version, const Consensus::Params& consensusParams) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+    {
+        return CustomizedHalvingEnforcedOnActiveChain(consensusParams) &&
+               peer_version < MIN_CUSTOMIZED_HALVING_PEER_PROTO_VERSION;
+    }
+
     /*
      * Filter for transactions that have been recently confirmed.
      * We use this to avoid requesting transactions that have already been
@@ -2645,10 +2668,32 @@ void PeerManager::ProcessMessage(CNode& pfrom, const std::string& msg_type, CDat
         }
 
         if (nVersion < MIN_PEER_PROTO_VERSION) {
-            // disconnect from peers older than this proto version
+            // Disconnect peers that are unconditionally too old for the network protocol.
             LogPrint(BCLog::NET, "peer=%d using obsolete version %i; disconnecting\n", pfrom.GetId(), nVersion);
             pfrom.fDisconnect = true;
             return;
+        }
+
+        const Consensus::Params& consensusParams = m_chainparams.GetConsensus();
+        int next_block_height;
+        bool customized_halving_enforced;
+        {
+            LOCK(cs_main);
+            next_block_height = NextBlockHeightForPeerChecks();
+            customized_halving_enforced = CustomizedHalvingEnforcedOnActiveChain(consensusParams);
+        }
+
+        if (consensusParams.HasCustomizedHalvingSchedule() && nVersion < MIN_CUSTOMIZED_HALVING_PEER_PROTO_VERSION) {
+            if (customized_halving_enforced) {
+                LogPrint(BCLog::NET, "peer=%d version %i is obsolete after customized halving activation at height %d; disconnecting\n",
+                         pfrom.GetId(), nVersion, consensusParams.nCustomizedHalvingPhase4StartHeight);
+                pfrom.fDisconnect = true;
+                return;
+            }
+
+            LogPrint(BCLog::NET,
+                     "peer=%d version %i is pre-upgrade for customized halving; allowing connection until activation height %d (next block %d)\n",
+                     pfrom.GetId(), nVersion, consensusParams.nCustomizedHalvingPhase4StartHeight, next_block_height);
         }
 
         if (!vRecv.empty())
@@ -4442,6 +4487,19 @@ bool PeerManager::SendMessages(CNode* pto)
     // Don't send anything until the version handshake is complete
     if (!pto->fSuccessfullyConnected || pto->fDisconnect)
         return true;
+
+    {
+        LOCK(cs_main);
+        // Consensus validation remains the real safety mechanism; this peer-version
+        // gate is only an activation-aware coordination aid for obsolete binaries.
+        if (PeerIsObsoleteForCustomizedHalving(pto->GetCommonVersion(), consensusParams)) {
+            LogPrint(BCLog::NET,
+                     "peer=%d version %i became obsolete after customized halving activation at height %d; disconnecting\n",
+                     pto->GetId(), pto->GetCommonVersion(), consensusParams.nCustomizedHalvingPhase4StartHeight);
+            pto->fDisconnect = true;
+            return true;
+        }
+    }
 
     // If we get here, the outgoing message serialization version is set and can't change.
     const CNetMsgMaker msgMaker(pto->GetCommonVersion());

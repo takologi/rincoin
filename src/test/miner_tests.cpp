@@ -381,6 +381,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         ::ChainActive().SetTip(next);
     }
     BOOST_CHECK(pblocktemplate = AssemblerForTest(chainparams).CreateNewBlock(scriptPubKey));
+    BOOST_CHECK_EQUAL(pblocktemplate->block.vtx[0]->vout[0].nValue, CAmount{1250000000});
     // Extend to the 2nd halving height.
     while (::ChainActive().Tip()->nHeight < 300) {
         CBlockIndex* prev = ::ChainActive().Tip();
@@ -393,6 +394,21 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         ::ChainActive().SetTip(next);
     }
     BOOST_CHECK(pblocktemplate = AssemblerForTest(chainparams).CreateNewBlock(scriptPubKey));
+    BOOST_CHECK_EQUAL(pblocktemplate->block.vtx[0]->vout[0].nValue, CAmount{1250000000});
+
+    // Extend to the customized phase-4 boundary on regtest.
+    while (::ChainActive().Tip()->nHeight < 599) {
+        CBlockIndex* prev = ::ChainActive().Tip();
+        CBlockIndex* next = new CBlockIndex();
+        next->phashBlock = new uint256(InsecureRand256());
+        ::ChainstateActive().CoinsTip().SetBestBlock(next->GetBlockHash());
+        next->pprev = prev;
+        next->nHeight = prev->nHeight + 1;
+        next->BuildSkip();
+        ::ChainActive().SetTip(next);
+    }
+    BOOST_CHECK(pblocktemplate = AssemblerForTest(chainparams).CreateNewBlock(scriptPubKey));
+    BOOST_CHECK_EQUAL(pblocktemplate->block.vtx[0]->vout[0].nValue, 4 * COIN);
 
     // invalid p2sh txn in *m_node.mempool, template creation fails
     tx.vin[0].prevout.hash = txFirst[0]->GetHash();

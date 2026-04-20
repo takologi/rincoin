@@ -50,7 +50,7 @@ MAX_BLOCK_SIGOPS = 20000
 MAX_BLOCK_SIGOPS_WEIGHT = MAX_BLOCK_SIGOPS * WITNESS_SCALE_FACTOR
 
 # Genesis block time (regtest)
-TIME_GENESIS_BLOCK = 1296688602
+TIME_GENESIS_BLOCK = 1743059120
 
 # From BIP141
 WITNESS_COMMITMENT_HEADER = b"\xaa\x21\xa9\xed"
@@ -126,9 +126,20 @@ def create_coinbase(height, pubkey=None, extra_output_script=None, fees=0):
     coinbase = CTransaction()
     coinbase.vin.append(CTxIn(COutPoint(0, 0xffffffff), script_BIP34_coinbase_height(height), 0xffffffff))
     coinbaseoutput = CTxOut()
-    coinbaseoutput.nValue = 50 * COIN
-    halvings = int(height / 150)  # regtest
-    coinbaseoutput.nValue >>= halvings
+
+    if height >= 4500:
+        coinbaseoutput.nValue = 60000000
+    elif height >= 3000:
+        coinbaseoutput.nValue = 1 * COIN
+    elif height >= 1500:
+        coinbaseoutput.nValue = 2 * COIN
+    elif height >= 600:
+        coinbaseoutput.nValue = 4 * COIN
+    else:
+        coinbaseoutput.nValue = 50 * COIN
+        halvings = int(height / 150)  # regtest standard phases 0-3
+        coinbaseoutput.nValue >>= halvings
+
     coinbaseoutput.nValue += fees
     if pubkey is not None:
         coinbaseoutput.scriptPubKey = CScript([pubkey, OP_CHECKSIG])

@@ -6,6 +6,7 @@
 #ifndef BITCOIN_CONSENSUS_PARAMS_H
 #define BITCOIN_CONSENSUS_PARAMS_H
 
+#include <amount.h>
 #include <uint256.h>
 #include <limits>
 
@@ -55,7 +56,22 @@ struct BIP9Deployment {
  */
 struct Params {
     uint256 hashGenesisBlock;
+    /** Governs the standard right-shift halving phases only. Networks may switch
+     *  to the explicit customized schedule below at network-specific heights. */
     int nSubsidyHalvingInterval;
+
+    /** Explicit post-phase-3 subsidy schedule for the customized halving. */
+    int nCustomizedHalvingPhase4StartHeight{-1};
+    int nCustomizedHalvingPhase5StartHeight{-1};
+    int nCustomizedHalvingPhase6StartHeight{-1};
+    int nCustomizedHalvingTailStartHeight{-1};
+    CAmount nCustomizedHalvingPhase4Subsidy{4 * COIN};
+    CAmount nCustomizedHalvingPhase5Subsidy{2 * COIN};
+    CAmount nCustomizedHalvingPhase6Subsidy{1 * COIN};
+    CAmount nCustomizedHalvingTailSubsidy{60000000};
+
+    bool HasCustomizedHalvingSchedule() const { return nCustomizedHalvingPhase4StartHeight >= 0; }
+
     /** Block height at which BIP16 becomes active */
     int BIP16Height;
     /** Block height and hash at which BIP34 becomes active */

@@ -1,3 +1,201 @@
+# Rincoin Core v2.0.0-RC1 Release Notes
+
+## Mandatory upgrade notice
+
+> Rincoin Core v2.0.0-RC1 introduces a consensus-level customized halving change. Nodes running v1.0.5 or earlier will become incompatible with mainnet after block **840000** and will no longer follow the main chain. Operators must upgrade before that height.
+
+## Activation heights
+
+- Mainnet: 840000
+- Testnet: 4200
+- Regtest: 600
+
+Testnet and regtest use lower activation heights so the transition can be rehearsed safely outside mainnet. The public testnet profile is currently accelerated with a 1050-block halving interval so the activation boundary can be exercised much sooner.
+
+## Customized halving overview
+
+The inherited halving schedule remains unchanged through phase 3. At the activation height for each network, Rincoin switches to an explicit post-phase-3 schedule with fixed rewards of 4 RIN, 2 RIN, 1 RIN, and a 0.6 RIN tail instead of continuing the inherited standard-halving progression. This is a consensus-level rule change coordinated with protocol transition marker 70018.
+
+## 1. Main tasks defined during the work
+
+This update is designated as version 2.0.0 because it introduces a consensus-level change with a coordinated protocol transition, making it incompatible with the previous release line once activated.
+
+Compared with the v1.0.5 baseline, the requested release update grouped into four distinct technical areas.
+
+### 1. Consensus and protocol transition
+
+- implementation of a deterministic, height-based customized halving schedule after phase 3;
+- explicit activation heights by network: mainnet 840000, testnet 4200, and regtest 600;
+- coordinated protocol-version transition for the upgraded release line;
+- explicit peer-policy behavior in which legacy peers remain acceptable before activation and are treated as obsolete once the new rules are active.
+
+### 2. Codebase normalization (Rincoin identity)
+
+- normalization of functionally relevant Rincoin identity across chain parameters, networking, configuration naming, and test infrastructure;
+- replacement of Litecoin-specific identity where it affected actual Rincoin behavior;
+- preservation of inherited upstream terminology only where it remained technically correct and semantically appropriate.
+
+### 3. Testing and verification
+
+- boundary-focused subsidy validation around the activation heights;
+- fee-aware coinbase-limit verification using inherited consensus semantics of subsidy plus fees;
+- multi-node regtest activation coverage for synchronized behavior across the transition;
+- pinned, documented, standardized, and largely reproducible mixed-version interoperability checks through:
+  - [contrib/verify_mixed_version_old_node.sh](contrib/verify_mixed_version_old_node.sh)
+  - environment-variable overrides in [test/functional/feature_customized_halving_old_node.py](test/functional/feature_customized_halving_old_node.py)
+  - preserved logs under [test-logs/customized_halving_old_node](test-logs/customized_halving_old_node)
+  - provenance notes in [doc/mixed-version-reproducibility.md](doc/mixed-version-reproducibility.md)
+
+### 4. Operational maintenance
+
+- release-line version metadata alignment for the v2.0.0-RC1 update;
+- developer-facing documentation of the activation rule and verification workflow;
+- routine checkpoint refresh in [src/chainparams.cpp](src/chainparams.cpp) as a release-maintenance step to improve initial sync trust and operational consistency.
+
+---
+
+## 2. Comparison of the prepared v2.0.0-RC1 state to v1.0.5 and to the task list
+
+The prepared v2.0.0-RC1 branch is a structured release update rather than a single subsidy patch. Relative to v1.0.5, it spans approximately:
+
+- **3 core consensus and parameter files**
+- **4 versioning, networking, and RPC surfaces**
+- **7 targeted test files**
+- **3 key documentation and reproducibility files**
+
+### Technical comparison by area
+
+| Area | v1.0.5 baseline | Prepared v2.0.0-RC1 state | Representative files |
+|---|---|---|---|
+| Consensus schedule | Standard inherited halving continuation | Explicit post-phase-3 customized schedule with deterministic height activation | [src/validation.cpp](src/validation.cpp), [src/consensus/params.h](src/consensus/params.h), [src/chainparams.cpp](src/chainparams.cpp) |
+| Protocol and peer coordination | Legacy protocol line and no customized-halving transition handling | Release protocol marker raised to 70018 as part of the coordinated transition, with pre-activation legacy acceptance and post-activation obsolescence handling | [src/version.h](src/version.h), [src/net_processing.cpp](src/net_processing.cpp), [src/rpc/net.cpp](src/rpc/net.cpp) |
+| Operator and miner diagnostics | No dedicated halving-readiness surfaces | Activation state, remaining distance to activation, warning signals, and obsolete-peer visibility are exposed for chain and mining RPC consumers | [src/rpc/blockchain.cpp](src/rpc/blockchain.cpp), [src/rpc/mining.cpp](src/rpc/mining.cpp), [src/rpc/net.cpp](src/rpc/net.cpp) |
+| Rincoin-specific normalization | Older release state with inherited upstream artifacts still present in relevant areas | Functionally relevant Rincoin identity aligned across configuration, chain parameters, and test harness behavior | [src/chainparams.cpp](src/chainparams.cpp), [test/functional/test_framework](test/functional/test_framework) |
+| Verification package | No customized-halving evidence bundle in the historical baseline | Boundary, fee-aware, multi-node, and mixed-version validation added as a coherent verification set | [src/test/validation_tests.cpp](src/test/validation_tests.cpp), [src/test/miner_tests.cpp](src/test/miner_tests.cpp), [test/functional](test/functional) |
+| Mixed-version reproducibility | No documented interoperability proof path | Pinned historical baseline provenance, source-build-first workflow, checksum-documented artifact fallback, and standardized evidence-log location | [contrib/verify_mixed_version_old_node.sh](contrib/verify_mixed_version_old_node.sh), [test/functional/feature_customized_halving_old_node.py](test/functional/feature_customized_halving_old_node.py), [doc/mixed-version-reproducibility.md](doc/mixed-version-reproducibility.md) |
+| Release maintenance | Standard prior release state | Release metadata staged as v2.0.0-RC1, documentation refreshed, and checkpoint maintenance included as routine release work | [configure.ac](configure.ac), [README.md](README.md), [doc/customized-halving.md](doc/customized-halving.md), [src/chainparams.cpp](src/chainparams.cpp) |
+
+### Established evidence already available in this channel
+
+The evidence already established for the prepared repository includes:
+
+- successful local release builds through [contrib/build_release.sh](contrib/build_release.sh);
+- successful targeted functional verification for:
+  - [test/functional/feature_customized_halving_boundary.py](test/functional/feature_customized_halving_boundary.py)
+  - [test/functional/mining_basic.py](test/functional/mining_basic.py)
+  - [test/functional/rpc_blockchain.py](test/functional/rpc_blockchain.py)
+  - [test/functional/p2p_invalid_block.py](test/functional/p2p_invalid_block.py)
+  - [test/functional/p2p_leak.py](test/functional/p2p_leak.py)
+- successful mixed-version interoperability validation through [test/functional/feature_customized_halving_old_node.py](test/functional/feature_customized_halving_old_node.py), demonstrating:
+  - coexistence before activation,
+  - synchronized progress to the final pre-activation block,
+  - divergence at activation,
+  - and failure of the obsolete legacy node to remain aligned afterward.
+
+### Historical baseline provenance for the mixed-version drill
+
+The legacy-node baseline is now pinned and documented as:
+
+- **version line:** v1.0.5 / v1.0.5rc1
+- **historical master baseline:** PR #4 merge into the official master history
+- **pinned commit:** b52c87778f800dc5f4e2f59c372badbc139f933f
+
+The preferred reproducible path is a source build from that pinned historical state. Because the official repository does not currently publish a downloadable v1.0.5 release artifact, a checksum-documented artifact fallback is also recorded in [doc/mixed-version-reproducibility.md](doc/mixed-version-reproducibility.md).
+
+This mixed-version path should be described as a **documented optional reproducibility workflow**, not a fully self-contained default CI proof.
+
+---
+
+## 3. Brief summary
+
+In final form, the prepared v2.0.0-RC1 branch represents a multi-area release update relative to v1.0.5:
+
+- a deterministic customized-halving consensus transition,
+- coordinated protocol and peer behavior,
+- functionally relevant Rincoin identity aligned across configuration, chain parameters, and test harness behavior,
+- a stronger verification package including mixed-version interoperability evidence,
+- and routine operational maintenance including release metadata, documentation refresh, and checkpoint upkeep.
+
+The mixed-version evidence is now **strong and largely reproducible**, with a pinned historical baseline, a source-build-first verification path, a checksum-documented fallback, and standardized preserved logs. It remains an **optional extended verification workflow**, not a default CI proof.
+
+---
+
+## 4. Brief comparison with the assessed external code
+
+For comparison, the assessed external repository at https://github.com/Aevust/rincoin appears materially thinner in evidentiary depth.
+
+Relative to the prepared v2.0.0-RC1 state, the main differences are:
+
+- less complete protocol-transition handling around legacy-peer coordination;
+- less developed operator-facing diagnostics for readiness and post-activation visibility;
+- a weaker and less standardized verification package, especially for mixed-version and boundary-focused proof.
+
+In short, the prepared branch presents a more complete and more review-ready technical evidence set.
+
+
+# Rincoin Core v1.0.5 Release Notes
+
+**Release Line:** v1.0.5rc1  
+**Release Commit:** 9193bc904f55fcd993c22fe1cce1326d58206046  
+**Compared with v1.0.4:** 32 files changed, 1,742 insertions, 254 deletions
+
+---
+
+## Overview
+
+Version 1.0.5 is a maintenance and infrastructure release that consolidates several reliability and performance improvements after v1.0.4. The main emphasis is on faster and better-instrumented header synchronization, improved DNS seed observability, fuller alignment of the test suite with Rincoin parameters, and several release and platform corrections.
+
+## Main Changes
+
+### 1. Header synchronization optimization
+
+The network and validation paths were updated to reduce the cost of processing large header batches.
+
+Representative areas:
+- `src/net_processing.cpp`
+- `src/validation.cpp`
+- `src/validation.h`
+- `src/test/header_sync_sim/`
+
+In practical terms, this release adds precomputation support for header hash work before the heaviest downstream validation paths and includes a standalone simulator for benchmarking and tuning header-sync behavior.
+
+### 2. DNS seed diagnostics and network visibility
+
+DNS seeding behavior was made more transparent for operators and developers.
+
+Representative areas:
+- `src/net.cpp`
+- `src/netbase.cpp`
+- `src/chainparams.cpp`
+
+The release improves startup and per-seed logging, records lookup outcomes more clearly, and keeps both official seed domains active for peer discovery.
+
+### 3. Rincoin-specific unit-test alignment
+
+A substantial portion of the test suite and test vectors was normalized so that inherited Litecoin assumptions no longer remained in places where Rincoin-specific parameters are required.
+
+Representative areas:
+- `src/test/`
+- `src/test/data/key_io_valid.json`
+- `src/test/data/key_io_invalid.json`
+
+This includes alignment of address, key, HRP, message-signing, and subsidy-related expectations with actual Rincoin network behavior.
+
+### 4. Platform and release-tooling corrections
+
+The release also includes several targeted stability and maintenance improvements.
+
+Representative areas:
+- `src/libmw/src/file/File.cpp`
+- `contrib/build_release.sh`
+- `configure.ac`
+
+These changes include correction of MWEB file handling on Windows for non-ASCII paths, a fix in the release-build checksum workflow, and the version-line advance to v1.0.5.
+
+## Summary
+
+Taken together, v1.0.5 is a focused maintenance release that strengthens synchronization efficiency, improves operational visibility, and brings the repository’s test and release tooling into closer alignment with Rincoin’s actual network identity and deployment needs.
+
 # Rincoin Core v1.0.4 Release Notes
 
 **Release Date:** February 4, 2026  

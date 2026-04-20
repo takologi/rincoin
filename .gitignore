@@ -137,6 +137,8 @@ win32-build
 test/config.ini
 test/cache/*
 test/.mypy_cache/
+.venv/
+test-logs/
 
 !src/leveldb*/Makefile
 

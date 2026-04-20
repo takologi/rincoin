@@ -1943,6 +1943,22 @@ bool AppInitMain(const util::Ref& context, NodeContext& node, interfaces::BlockA
     }
     LogPrintf("nBestHeight = %d\n", chain_active_height);
 
+    const Consensus::Params& startup_consensus = chainparams.GetConsensus();
+    if (startup_consensus.HasCustomizedHalvingSchedule()) {
+        const int next_block_height = chain_active_height + 1;
+        const int activation_height = startup_consensus.nCustomizedHalvingPhase4StartHeight;
+        if (next_block_height < activation_height) {
+            LogPrintf("Customized halving activates at height %d (%d blocks remaining). Peers older than protocol %d remain acceptable before activation, but will be disconnected once the new rules are active.\n",
+                      activation_height,
+                      activation_height - next_block_height,
+                      MIN_CUSTOMIZED_HALVING_PEER_PROTO_VERSION);
+        } else {
+            LogPrintf("Customized halving is active as of height %d. Peers older than protocol %d are now obsolete and will be disconnected.\n",
+                      activation_height,
+                      MIN_CUSTOMIZED_HALVING_PEER_PROTO_VERSION);
+        }
+    }
+
     Discover();
 
     // Map ports with UPnP

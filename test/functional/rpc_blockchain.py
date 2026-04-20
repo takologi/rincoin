@@ -83,6 +83,7 @@ class BlockchainTest(BitcoinTestFramework):
             'blocks',
             'chain',
             'chainwork',
+            'customized_halving',
             'difficulty',
             'headers',
             'initialblockdownload',
@@ -97,6 +98,18 @@ class BlockchainTest(BitcoinTestFramework):
 
         # result should have these additional pruning keys if manual pruning is enabled
         assert_equal(sorted(res.keys()), sorted(['pruneheight', 'automatic_pruning'] + keys))
+
+        halving = res['customized_halving']
+        assert_equal(halving['active'], False)
+        assert_equal(halving['ruleset'], 'legacy_halving')
+        assert_equal(halving['activation_height'], 600)
+        assert_equal(halving['blocks_until_activation'], 399)
+        assert_equal(halving['next_block_subsidy'], 25 * 100000000)
+        assert_equal(halving['next_transition_height'], 600)
+        assert_equal(halving['minimum_protocol_version'], 70018)
+        assert_equal(halving['obsolete_peer_count'], 0)
+        assert 'Upgrade required before customized halving activation' in halving['warning']
+        assert 'Customized halving activates at height 600' in res['warnings']
 
         # size_on_disk should be > 0
         assert_greater_than(res['size_on_disk'], 0)

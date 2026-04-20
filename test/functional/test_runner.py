@@ -79,6 +79,7 @@ TEST_FRAMEWORK_MODULES = [
 EXTENDED_SCRIPTS = [
     # These tests are not run by default.
     # Longest test should go first, to favor running tests in parallel
+    'feature_customized_halving_old_node.py',
     'mweb_weight.py',
     'feature_pruning.py',
     'feature_dbcrash.py',
@@ -232,6 +233,7 @@ BASE_SCRIPTS = [
     'rpc_bind.py --ipv6',
     'rpc_bind.py --nonloopback',
     'mining_basic.py',
+    'feature_customized_halving_boundary.py',
     'feature_signet.py',
     'wallet_bumpfee.py',
     'wallet_bumpfee.py --descriptors',

@@ -91,6 +91,7 @@ class P2PVersionStore(P2PInterface):
 class P2PLeakTest(BitcoinTestFramework):
     def set_test_params(self):
         self.num_nodes = 1
+        self.extra_args = [["-vbparams=mweb:4102444800:4102444801"]]
 
     def run_test(self):
         # Peer that never sends a version. We will send a bunch of messages
@@ -136,6 +137,7 @@ class P2PLeakTest(BitcoinTestFramework):
         self.log.info('Check that the version message does not leak the local address of the node')
         p2p_version_store = self.nodes[0].add_p2p_connection(P2PVersionStore())
         ver = p2p_version_store.version_received
+        assert any(peer['customized_halving_ready'] and not peer['customized_halving_obsolete'] for peer in self.nodes[0].getpeerinfo())
         # Check that received time is within one hour of now
         assert_greater_than_or_equal(ver.nTime, time.time() - 3600)
         assert_greater_than_or_equal(time.time() + 3600, ver.nTime)
@@ -144,13 +146,38 @@ class P2PLeakTest(BitcoinTestFramework):
         assert_equal(ver.nStartingHeight, 201)
         assert_equal(ver.nRelay, 1)
 
-        self.log.info('Check that old peers are disconnected')
+        self.log.info('Check that pre-activation legacy peers are still accepted')
+        p2p_legacy_pre_activation = self.nodes[0].add_p2p_connection(P2PInterface(), send_version=False, wait_for_verack=False)
+        legacy_pre_activation_msg = msg_version()
+        legacy_pre_activation_msg.nVersion = 70017
+        p2p_legacy_pre_activation.send_message(legacy_pre_activation_msg)
+        p2p_legacy_pre_activation.wait_for_verack()
+        assert p2p_legacy_pre_activation.is_connected
+        legacy_peer_info = next(peer for peer in self.nodes[0].getpeerinfo() if peer['version'] == 70017)
+        assert_equal(legacy_peer_info['customized_halving_ready'], False)
+        assert_equal(legacy_peer_info['customized_halving_obsolete'], False)
+        p2p_legacy_pre_activation.peer_disconnect()
+        p2p_legacy_pre_activation.wait_for_disconnect()
+
+        self.log.info('Check that permanently obsolete peers are disconnected')
         p2p_old_peer = self.nodes[0].add_p2p_connection(P2PInterface(), send_version=False, wait_for_verack=False)
         old_version_msg = msg_version()
         old_version_msg.nVersion = 31799
-        with self.nodes[0].assert_debug_log(['peer=4 using obsolete version 31799; disconnecting']):
+        with self.nodes[0].assert_debug_log(['using obsolete version 31799; disconnecting']):
             p2p_old_peer.send_message(old_version_msg)
             p2p_old_peer.wait_for_disconnect()
+
+        self.log.info('Check that pre-upgrade peers become obsolete after customized halving activation')
+        current_height = self.nodes[0].getblockchaininfo()['blocks']
+        if current_height < 600:
+            self.nodes[0].generate(nblocks=600 - current_height)
+
+        p2p_legacy_post_activation = self.nodes[0].add_p2p_connection(P2PInterface(), send_version=False, wait_for_verack=False)
+        legacy_post_activation_msg = msg_version()
+        legacy_post_activation_msg.nVersion = 70017
+        with self.nodes[0].assert_debug_log(['version 70017 is obsolete after customized halving activation']):
+            p2p_legacy_post_activation.send_message(legacy_post_activation_msg)
+            p2p_legacy_post_activation.wait_for_disconnect()
 
 
 if __name__ == '__main__':

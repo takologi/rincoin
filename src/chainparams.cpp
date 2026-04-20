@@ -96,6 +96,14 @@ public:
         consensus.signet_blocks = false;
         consensus.signet_challenge.clear();
         consensus.nSubsidyHalvingInterval = 210000;
+        consensus.nCustomizedHalvingPhase4StartHeight = 4 * consensus.nSubsidyHalvingInterval;
+        consensus.nCustomizedHalvingPhase5StartHeight = 10 * consensus.nSubsidyHalvingInterval;
+        consensus.nCustomizedHalvingPhase6StartHeight = 20 * consensus.nSubsidyHalvingInterval;
+        consensus.nCustomizedHalvingTailStartHeight = 30 * consensus.nSubsidyHalvingInterval;
+        consensus.nCustomizedHalvingPhase4Subsidy = 4 * COIN;
+        consensus.nCustomizedHalvingPhase5Subsidy = 2 * COIN;
+        consensus.nCustomizedHalvingPhase6Subsidy = 1 * COIN;
+        consensus.nCustomizedHalvingTailSubsidy = CAmount{60000000};
         consensus.BIP16Height = 26500; // 87afb798a3ad9378fcd56123c81fb31cfd9a8df4719b9774d71730c16315a092 - October 1, 2012
         consensus.BIP34Height = 26500;
         consensus.BIP34Hash = uint256S("0x00");
@@ -302,6 +310,40 @@ public:
                 {428257, uint256S("0x0000000106efeb97bc659c4a64854fd87496ddffd34b9d364f5075ab669c1812")},
                 {431349, uint256S("0x000000000ba202bb8e21b2d1692771005d5068a034442908582ad1217f0def8c")},
                 {435935, uint256S("0x000000011e8878e186627ae2a8044aaf34634d4130d9a6c9a9d321edcf73f80d")},
+                {440000, uint256S("0x00000001d05a9500a185fe4fe9ec3cf9b3325d0add4012a1b35a93ec98c204fe")},
+                {441637, uint256S("0x000000016bdd6135c085b76617b8b87303912389785f0f6e0c8e09ef18fb11bb")},
+                {445834, uint256S("0x000000016afe954dc0af67f3c962a444b5b19a859f3f3ab803f245027d454b7b")},
+                {449218, uint256S("0x000000013b1301eedb8d5827a05697cbb57dda44154bfe6d57b0461bf680fc91")},
+                {451538, uint256S("0x00000001424b2a5508cff78f1fbe398bcb7f13222880ae8cb3dec5ad5fde07bb")},
+                {455942, uint256S("0x00000000c613406b8cbb94f118275d67df73e98a76c770e3831f0719e0dddbe3")},
+                {459976, uint256S("0x000000020544c3baf728cc77334747a99ff916218f2e691490e725bd2b9d6e2a")},
+                {462888, uint256S("0x000000006069f11a5858e222550c08540f891037ad907634ca351d6f2318e6a9")},
+                {465765, uint256S("0x00000002d3a9f5ef79ddcbada3a2ffc1b88c07a0b60b2d159e34d6ae3b700725")},
+                {468700, uint256S("0x0000000114510b076fd5838c686236c805ef93979b98ad42a709b8af3d0d34fb")},
+                {472801, uint256S("0x000000017b12b896075f2d62205f8443ac4352169972237c2c7f7b6a89024d5c")},
+                {475004, uint256S("0x00000002172bc295335b80d9028e7c189e3a9a5a1f4cc0267e8af7e4c97c04bc")},
+                {479409, uint256S("0x00000000254750cd745eab93ac42036b7e8d68f8a97c4836957d1886ab6c463d")},
+                {483438, uint256S("0x00000000cf29adef2e133ce9694590a4e966499a9f837e1f5350c58c87278111")},
+                {486470, uint256S("0x00000002bea542223a7cda6f7ce3fec7fa5ba7901eea76fa04e03a8f1e7a633e")},
+                {489899, uint256S("0x00000001878b68f36e491d98a153b09a16f08e63835646bc2559d352b5821e4f")},
+                {491965, uint256S("0x00000000fc2a275587f6496b72f22b5d277fac18a2ec0e6cafc97e84722870fe")},
+                {493607, uint256S("0x000000005caa7720681917be976d5b51fdd083829b875b59a3a38399ec0ca1d0")},
+                {495182, uint256S("0x00000002be7bc04aa1a804edf3486f41b5a70d8c012537e57ff27a181e2df3c5")},
+                {497823, uint256S("0x000000029e8dc57958c9e6f358961d5d7a9ca0f70e1b268a84004b48827d78b5")},
+                {501411, uint256S("0x00000000d857b4aa1d4dea2ace33cdc16720649c395433d24f1d49daf9947b35")},
+                {503281, uint256S("0x0000000266b082c0ff4bacb9dda8ccd166971df8365db050778f26968a981190")},
+                {506023, uint256S("0x0000000205beaf9ae7645218326342b7fbfc8a2fa2968a9332365933fdd36cee")},
+                {509253, uint256S("0x00000001b5d1a67bba1632f52666869f8f83cea2ae48f806ce39a5731104cf28")},
+                {512269, uint256S("0x00000001f04e218a27383d52c5f535430a2016d415521d388ae5d4fbd9550aa1")},
+                {515934, uint256S("0x000000023134a305a91f218e60c6fe52032d3473568267d41faa32a215293c40")},
+                {520282, uint256S("0x00000002dd62218a8401b088b440421e8c27e73566df503cf2ebdda5cebb7328")},
+                {523572, uint256S("0x00000000bfaba6f0c1781d73e724179e4a362805ae3fa2434cc30ce95dc3f183")},
+                {525290, uint256S("0x000000021fe60d901980eb4aa6096bc6fee628f384e0e8396ce55621d088f46f")},
+                {528787, uint256S("0x000000014802923b125e0b02ac8aea0457a5b7e2b0d1a55ff11d1e62ccce46ae")},
+                {530463, uint256S("0x00000005030cfbf1b3c7e5b23fdfec0baac4e5492f4aaa2162645c5294553854")},
+                {533264, uint256S("0x000000020a49958297bcabb57b97cee1d01e84c573a871f98895663f3d7b893a")},
+                {536462, uint256S("0x00000002a01f007704650dca04935cce631e96588af338e77dadfe4e9f452688")},
+                {539758, uint256S("0x000000022e048261cf2885573de380fb4d8b0c8568360806d18d62148ca4c22c")},
             }
         };
         chainTxData = ChainTxData{
@@ -322,7 +364,19 @@ public:
         strNetworkID = CBaseChainParams::TESTNET;
         consensus.signet_blocks = false;
         consensus.signet_challenge.clear();
-        consensus.nSubsidyHalvingInterval = 210000;
+        // Testnet activates the customized schedule at earlier explicit heights so miners,
+        // explorers, and integrations can rehearse the fork before the mainnet transition.
+        // the halving is set to be 200 times faster i.e. 1050 blocks per halving instead 
+        // of 210000 blocks per halving on mainnet. It means halving happen in less than 1 day.
+        consensus.nSubsidyHalvingInterval = 1050;
+        consensus.nCustomizedHalvingPhase4StartHeight = 4 * consensus.nSubsidyHalvingInterval;
+        consensus.nCustomizedHalvingPhase5StartHeight = 10 * consensus.nSubsidyHalvingInterval;
+        consensus.nCustomizedHalvingPhase6StartHeight = 20 * consensus.nSubsidyHalvingInterval;
+        consensus.nCustomizedHalvingTailStartHeight = 30 * consensus.nSubsidyHalvingInterval;
+        consensus.nCustomizedHalvingPhase4Subsidy = 4 * COIN;
+        consensus.nCustomizedHalvingPhase5Subsidy = 2 * COIN;
+        consensus.nCustomizedHalvingPhase6Subsidy = 1 * COIN;
+        consensus.nCustomizedHalvingTailSubsidy = CAmount{60000000};
         consensus.BIP16Height = 0; // always enforce P2SH BIP16 on testnet
         consensus.BIP34Height = 76;
         consensus.BIP34Hash = uint256S("8075c771ed8b495ffd943980a95f702ab34fce3c8c54e379548bda33cc8c0573");
@@ -415,6 +469,14 @@ public:
         consensus.signet_blocks = false;
         consensus.signet_challenge.clear();
         consensus.nSubsidyHalvingInterval = 150;
+        consensus.nCustomizedHalvingPhase4StartHeight = 4 * consensus.nSubsidyHalvingInterval;
+        consensus.nCustomizedHalvingPhase5StartHeight = 10 * consensus.nSubsidyHalvingInterval;
+        consensus.nCustomizedHalvingPhase6StartHeight = 20 * consensus.nSubsidyHalvingInterval;
+        consensus.nCustomizedHalvingTailStartHeight = 30 * consensus.nSubsidyHalvingInterval;
+        consensus.nCustomizedHalvingPhase4Subsidy = 4 * COIN;
+        consensus.nCustomizedHalvingPhase5Subsidy = 2 * COIN;
+        consensus.nCustomizedHalvingPhase6Subsidy = 1 * COIN;
+        consensus.nCustomizedHalvingTailSubsidy = CAmount{60000000};
         consensus.BIP16Height = 0;
         consensus.BIP34Height = 500; // BIP34 activated on regtest (Used in functional tests)
         consensus.BIP34Hash = uint256();

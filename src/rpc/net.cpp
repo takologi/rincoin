@@ -125,6 +125,8 @@ static RPCHelpMan getpeerinfo()
                             {RPCResult::Type::NUM, "pingwait", "ping wait (if non-zero)"},
                             {RPCResult::Type::NUM, "version", "The peer version, such as 70001"},
                             {RPCResult::Type::STR, "subver", "The string version"},
+                            {RPCResult::Type::BOOL, "customized_halving_ready", "whether the peer advertises the minimum protocol version required for the customized halving release"},
+                            {RPCResult::Type::BOOL, "customized_halving_obsolete", "whether the peer is now obsolete because the customized halving is active and the peer version is too old"},
                             {RPCResult::Type::BOOL, "inbound", "Inbound (true) or Outbound (false)"},
                             {RPCResult::Type::BOOL, "addnode", "Whether connection was due to addnode/-connect or if it was an automatic/inbound connection\n"
                                                                "(DEPRECATED, returned only if the config option -deprecatedrpc=getpeerinfo_addnode is passed)"},
@@ -177,6 +179,9 @@ static RPCHelpMan getpeerinfo()
     std::vector<CNodeStats> vstats;
     node.connman->GetNodeStats(vstats);
 
+    const Consensus::Params& consensusParams = Params().GetConsensus();
+    const int current_chain_height = WITH_LOCK(cs_main, return ::ChainActive().Height(););
+
     UniValue ret(UniValue::VARR);
 
     for (const CNodeStats& stats : vstats) {
@@ -220,6 +225,12 @@ static RPCHelpMan getpeerinfo()
         // corrupting or modifying the JSON output by putting special characters in
         // their ver message.
         obj.pushKV("subver", stats.cleanSubVer);
+        const bool customized_halving_ready = stats.nVersion >= MIN_CUSTOMIZED_HALVING_PEER_PROTO_VERSION;
+        const bool customized_halving_obsolete = consensusParams.HasCustomizedHalvingSchedule() &&
+            current_chain_height >= consensusParams.nCustomizedHalvingPhase4StartHeight &&
+            !customized_halving_ready;
+        obj.pushKV("customized_halving_ready", customized_halving_ready);
+        obj.pushKV("customized_halving_obsolete", customized_halving_obsolete);
         obj.pushKV("inbound", stats.fInbound);
         if (IsDeprecatedRPCEnabled("getpeerinfo_addnode")) {
             // addnode is deprecated in v0.21 for removal in v0.22

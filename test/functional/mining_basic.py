@@ -20,6 +20,7 @@ from test_framework.messages import (
     CBlock,
     CBlockHeader,
     BLOCK_HEADER_SIZE,
+    COIN,
 )
 from test_framework.p2p import P2PDataStore
 from test_framework.test_framework import BitcoinTestFramework
@@ -48,6 +49,8 @@ class MiningTest(BitcoinTestFramework):
         self.num_nodes = 2
         self.setup_clean_chain = True
         self.supports_cli = False
+        disable_mweb = '-vbparams=mweb:4102444800:4102444801'
+        self.extra_args = [[disable_mweb], [disable_mweb]]
 
     def mine_chain(self):
         self.log.info('Create some old blocks')
@@ -65,7 +68,9 @@ class MiningTest(BitcoinTestFramework):
         assert_equal(536870912, self.nodes[0].getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)['version'])
         self.restart_node(0, extra_args=['-mocktime={}'.format(t)])
         self.connect_nodes(0, 1)
-        assert_equal(VERSIONBITS_TOP_BITS + (1 << VERSIONBITS_DEPLOYMENT_TESTDUMMY_BIT), self.nodes[0].getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)['version'])
+        version = self.nodes[0].getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)['version']
+        assert_equal(version & VERSIONBITS_TOP_BITS, VERSIONBITS_TOP_BITS)
+        assert_equal(version & (1 << VERSIONBITS_DEPLOYMENT_TESTDUMMY_BIT), 1 << VERSIONBITS_DEPLOYMENT_TESTDUMMY_BIT)
         self.restart_node(0)
         self.connect_nodes(0, 1)
 
@@ -93,6 +98,13 @@ class MiningTest(BitcoinTestFramework):
         node.generatetoaddress(1, node.get_deterministic_priv_key().address)
         tmpl = node.getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)
         self.log.info("getblocktemplate: Test capability advertised")
+        assert_equal(tmpl['customized_halving']['active'], False)
+        assert_equal(tmpl['customized_halving']['ruleset'], 'legacy_halving')
+        assert_equal(tmpl['customized_halving']['activation_height'], 600)
+        assert_equal(tmpl['customized_halving']['next_transition_height'], 600)
+        assert_equal(tmpl['customized_halving']['minimum_protocol_version'], 70018)
+        assert 'Upgrade miners before customized halving activation' in tmpl['customized_halving']['warning']
+        assert 'Customized halving activates at height 600' in tmpl['warnings']
         assert 'proposal' in tmpl['capabilities']
         assert 'coinbasetxn' not in tmpl
 
@@ -258,6 +270,27 @@ class MiningTest(BitcoinTestFramework):
         node.submitheader(hexdata=CBlockHeader(block).serialize().hex())
         node.submitheader(hexdata=CBlockHeader(bad_block_root).serialize().hex())
         assert_equal(node.submitblock(hexdata=block.serialize().hex()), 'duplicate')  # valid
+
+        self.log.info('getblocktemplate: customized halving activates cleanly on regtest')
+        current_height = node.getblockchaininfo()['blocks']
+        if current_height < 599:
+            node.generatetoaddress(599 - current_height, node.get_deterministic_priv_key().address)
+        tmpl = node.getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)
+        assert_equal(tmpl['height'], 600)
+        assert_equal(tmpl['customized_halving']['active'], True)
+        assert_equal(tmpl['customized_halving']['ruleset'], 'customized_halving')
+        assert_equal(tmpl['customized_halving']['blocks_until_activation'], 0)
+        assert_equal(tmpl['customized_halving']['next_block_subsidy'], 4 * COIN)
+        assert_equal(tmpl['coinbasevalue'], 4 * COIN)
+        assert 'Customized halving rules are active for newly mined blocks.' in tmpl['warnings']
+
+        self.log.info('two-node regtest sync remains consistent across the activation boundary')
+        node.generatetoaddress(1, node.get_deterministic_priv_key().address)
+        self.sync_all()
+        assert_equal(self.nodes[1].getblockchaininfo()['blocks'], 600)
+        node1_tmpl = self.nodes[1].getblocktemplate(NORMAL_GBT_REQUEST_PARAMS)
+        assert_equal(node1_tmpl['customized_halving']['active'], True)
+        assert_equal(node1_tmpl['coinbasevalue'], 4 * COIN)
 
 
 if __name__ == '__main__':

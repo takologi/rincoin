@@ -1270,13 +1270,30 @@ bool ReadRawBlockFromDisk(std::vector<uint8_t>& block, const CBlockIndex* pindex
 
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 {
+    if (consensusParams.HasCustomizedHalvingSchedule()) {
+        if (nHeight >= consensusParams.nCustomizedHalvingTailStartHeight) {
+            return consensusParams.nCustomizedHalvingTailSubsidy;
+        }
+        if (nHeight >= consensusParams.nCustomizedHalvingPhase6StartHeight) {
+            return consensusParams.nCustomizedHalvingPhase6Subsidy;
+        }
+        if (nHeight >= consensusParams.nCustomizedHalvingPhase5StartHeight) {
+            return consensusParams.nCustomizedHalvingPhase5Subsidy;
+        }
+        if (nHeight >= consensusParams.nCustomizedHalvingPhase4StartHeight) {
+            return consensusParams.nCustomizedHalvingPhase4Subsidy;
+        }
+    }
+
     int halvings = nHeight / consensusParams.nSubsidyHalvingInterval;
     // Force block reward to zero when right shift is undefined.
     if (halvings >= 64)
         return 0;
 
     CAmount nSubsidy = 50 * COIN;
-    // Subsidy is cut in half every 210,000 blocks which will occur approximately every 4 years.
+    // Standard halvings apply through phase 3. Later phases intentionally switch to the
+    // explicit fixed-reward schedule above; in particular, phase 4 is deliberately 4 RIN
+    // rather than the natural 3.125 RIN produced by another right shift.
     nSubsidy >>= halvings;
     return nSubsidy;
 }

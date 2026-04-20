@@ -22,7 +22,7 @@ class InvalidBlockRequestTest(BitcoinTestFramework):
     def set_test_params(self):
         self.num_nodes = 1
         self.setup_clean_chain = True
-        self.extra_args = [["-whitelist=noban@127.0.0.1"]]
+        self.extra_args = [["-whitelist=noban@127.0.0.1", "-vbparams=mweb:4102444800:4102444801"]]
 
     def run_test(self):
         # Add p2p connection to node0
@@ -132,6 +132,39 @@ class InvalidBlockRequestTest(BitcoinTestFramework):
         block4.solve()
         self.log.info("Test inflation by duplicating input")
         peer.send_blocks_and_test([block4], node, success=False,  reject_reason='bad-txns-inputs-duplicate')
+
+        self.log.info("Test customized halving boundary handling of maximum-vs-underpay coinbase rules")
+        current_height = node.getblockchaininfo()["blocks"]
+        if current_height < 598:
+            node.generatetoaddress(598 - current_height, node.get_deterministic_priv_key().address)
+
+        best_block = node.getblock(node.getbestblockhash())
+        tip = int(node.getbestblockhash(), 16)
+        height = best_block["height"] + 1
+        block_time = best_block["time"] + 1
+        assert_equal(height, 599)
+
+        # Consensus only enforces a maximum coinbase value. Paying 4 RIN one block
+        # before activation is still valid because it is below the legacy 6.25 RIN cap.
+        underpay_pre_activation = create_block(tip, create_coinbase(height), block_time, version=0x20000000)
+        underpay_pre_activation.vtx[0].vout[0].nValue = 4 * COIN
+        underpay_pre_activation.vtx[0].rehash()
+        underpay_pre_activation.hashMerkleRoot = underpay_pre_activation.calc_merkle_root()
+        underpay_pre_activation.rehash()
+        underpay_pre_activation.solve()
+        peer.send_blocks_and_test([underpay_pre_activation], node, success=True)
+
+        good_transition = create_block(underpay_pre_activation.sha256, create_coinbase(height + 1), block_time + 1, version=0x20000000)
+        good_transition.solve()
+        peer.send_blocks_and_test([good_transition], node, success=True)
+
+        bad_transition = create_block(good_transition.sha256, create_coinbase(height + 2), block_time + 2, version=0x20000000)
+        bad_transition.vtx[0].vout[0].nValue = 625000000
+        bad_transition.vtx[0].rehash()
+        bad_transition.hashMerkleRoot = bad_transition.calc_merkle_root()
+        bad_transition.rehash()
+        bad_transition.solve()
+        peer.send_blocks_and_test([bad_transition], node, success=False, reject_reason='bad-cb-amount')
 
 if __name__ == '__main__':
     InvalidBlockRequestTest().main()

@@ -14,6 +14,7 @@
 #include <core_io.h>
 #include <hash.h>
 #include <index/blockfilterindex.h>
+#include <net.h>
 #include <node/coinstats.h>
 #include <node/context.h>
 #include <node/utxo_snapshot.h>
@@ -1489,6 +1490,18 @@ RPCHelpMan getblockchaininfo()
                                 {RPCResult::Type::BOOL, "active", "true if the rules are enforced for the mempool and the next block"},
                             }},
                         }},
+                        {RPCResult::Type::OBJ, "customized_halving", "status of the customized post-phase-3 subsidy schedule for the next block",
+                        {
+                            {RPCResult::Type::BOOL, "active", "true if the next block already uses the customized subsidy schedule"},
+                            {RPCResult::Type::STR, "ruleset", "the ruleset that will apply to the next block: legacy_halving or customized_halving"},
+                            {RPCResult::Type::NUM, "activation_height", "first height at which the customized subsidy schedule applies"},
+                            {RPCResult::Type::NUM, "blocks_until_activation", "number of blocks remaining before the next-block rules switch over"},
+                            {RPCResult::Type::NUM, "next_block_subsidy", "subsidy that will apply to the next block, in satoshis"},
+                            {RPCResult::Type::NUM, "next_transition_height", "next height at which the subsidy will change again, or -1 if the terminal subsidy is already active"},
+                            {RPCResult::Type::NUM, "minimum_protocol_version", "minimum peer protocol version expected once the customized halving is active"},
+                            {RPCResult::Type::NUM, "obsolete_peer_count", "number of connected peers that are below the required customized-halving protocol version"},
+                            {RPCResult::Type::STR, "warning", "customized-halving-specific readiness warning, if any"},
+                        }},
                         {RPCResult::Type::STR, "warnings", "any network and blockchain warnings"},
                     }},
                 RPCExamples{
@@ -1497,6 +1510,12 @@ RPCHelpMan getblockchaininfo()
                 },
         [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
 {
+    NodeContext& node = EnsureNodeContext(request.context);
+    std::vector<CNodeStats> peer_stats;
+    if (node.connman) {
+        node.connman->GetNodeStats(peer_stats);
+    }
+
     LOCK(cs_main);
 
     const CBlockIndex* tip = ::ChainActive().Tip();
@@ -1541,7 +1560,77 @@ RPCHelpMan getblockchaininfo()
     VBSoftForkDescPushBack(softforks, "mweb", consensusParams, Consensus::DEPLOYMENT_MWEB);
     obj.pushKV("softforks",             softforks);
 
-    obj.pushKV("warnings", GetWarnings(false).original);
+    if (consensusParams.HasCustomizedHalvingSchedule()) {
+        const int next_block_height = tip->nHeight + 1;
+        const int activation_height = consensusParams.nCustomizedHalvingPhase4StartHeight;
+        const int blocks_until_activation = std::max(0, activation_height - next_block_height);
+
+        int next_transition_height = -1;
+        for (const int candidate : {consensusParams.nCustomizedHalvingPhase4StartHeight,
+                                    consensusParams.nCustomizedHalvingPhase5StartHeight,
+                                    consensusParams.nCustomizedHalvingPhase6StartHeight,
+                                    consensusParams.nCustomizedHalvingTailStartHeight}) {
+            if (candidate > next_block_height) {
+                next_transition_height = candidate;
+                break;
+            }
+        }
+
+        const bool enforced_on_active_chain = tip->nHeight >= activation_height;
+        const bool active = enforced_on_active_chain;
+        size_t obsolete_peer_count = 0;
+        for (const CNodeStats& stats : peer_stats) {
+            if (enforced_on_active_chain && stats.nVersion < MIN_CUSTOMIZED_HALVING_PEER_PROTO_VERSION) {
+                ++obsolete_peer_count;
+            }
+        }
+
+        std::string halving_warning;
+        if (!enforced_on_active_chain) {
+            halving_warning = strprintf("Upgrade required before customized halving activation at height %d (%d blocks remaining).", activation_height, blocks_until_activation);
+        } else {
+            halving_warning = strprintf("Customized halving rules are active for the next block; peers below protocol %d are obsolete.", MIN_CUSTOMIZED_HALVING_PEER_PROTO_VERSION);
+        }
+
+        UniValue custom_halving(UniValue::VOBJ);
+        custom_halving.pushKV("active", active);
+        custom_halving.pushKV("ruleset", active ? "customized_halving" : "legacy_halving");
+        custom_halving.pushKV("activation_height", activation_height);
+        custom_halving.pushKV("blocks_until_activation", blocks_until_activation);
+        custom_halving.pushKV("next_block_subsidy", GetBlockSubsidy(next_block_height, consensusParams));
+        custom_halving.pushKV("next_transition_height", next_transition_height);
+        custom_halving.pushKV("minimum_protocol_version", MIN_CUSTOMIZED_HALVING_PEER_PROTO_VERSION);
+        custom_halving.pushKV("obsolete_peer_count", static_cast<int>(obsolete_peer_count));
+        custom_halving.pushKV("warning", halving_warning);
+        obj.pushKV("customized_halving", custom_halving);
+    }
+
+    std::string warnings = GetWarnings(false).original;
+    if (consensusParams.HasCustomizedHalvingSchedule()) {
+        const int next_block_height = tip->nHeight + 1;
+        const int activation_height = consensusParams.nCustomizedHalvingPhase4StartHeight;
+        const int blocks_until_activation = std::max(0, activation_height - next_block_height);
+
+        size_t obsolete_peer_count = 0;
+        for (const CNodeStats& stats : peer_stats) {
+            if (tip->nHeight >= activation_height && stats.nVersion < MIN_CUSTOMIZED_HALVING_PEER_PROTO_VERSION) {
+                ++obsolete_peer_count;
+            }
+        }
+
+        if (tip->nHeight < activation_height) {
+            if (!warnings.empty()) warnings += ' ';
+            warnings += strprintf("Customized halving activates at height %d (%d blocks remaining for the next-block rules).", activation_height, blocks_until_activation);
+        } else {
+            if (!warnings.empty()) warnings += ' ';
+            warnings += strprintf("Customized halving rules are active as of height %d.", activation_height);
+            if (obsolete_peer_count > 0) {
+                warnings += strprintf(" %u obsolete peer(s) detected below protocol %d.", static_cast<unsigned int>(obsolete_peer_count), MIN_CUSTOMIZED_HALVING_PEER_PROTO_VERSION);
+            }
+        }
+    }
+
+    obj.pushKV("warnings", warnings);
     return obj;
 },
     };

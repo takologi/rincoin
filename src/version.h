@@ -9,13 +9,18 @@
  * network protocol versioning
  */
 
-static const int PROTOCOL_VERSION = 70017;
+//! protocol version advertised by nodes enforcing the customized halving schedule
+static const int CUSTOMIZED_HALVING_VERSION = 70018;
+static const int PROTOCOL_VERSION = CUSTOMIZED_HALVING_VERSION;
 
 //! initial proto version, to be increased after version/verack negotiation
 static const int INIT_PROTO_VERSION = 209;
 
-//! disconnect from peers older than this proto version
+//! base compatibility floor for peers that are always too old to talk to us
 static const int MIN_PEER_PROTO_VERSION = 31800;
+
+//! peers below this version become obsolete once the customized halving is active
+static const int MIN_CUSTOMIZED_HALVING_PEER_PROTO_VERSION = CUSTOMIZED_HALVING_VERSION;
 
 //! BIP 0031, pong message, is enabled for all versions AFTER this one
 static const int BIP0031_VERSION = 60000;

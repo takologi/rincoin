@@ -576,6 +576,18 @@ static RPCHelpMan getblocktemplate()
                             {RPCResult::Type::STR_HEX, "key", "values must be in the coinbase (keys may be ignored)"},
                         }},
                         {RPCResult::Type::NUM, "coinbasevalue", "maximum allowable input to coinbase transaction, including the generation award and transaction fees (in satoshis)"},
+                        {RPCResult::Type::OBJ, "customized_halving", "status of the customized subsidy schedule for the next block template",
+                            {
+                                {RPCResult::Type::BOOL, "active", "true if the template height already uses the customized subsidy schedule"},
+                                {RPCResult::Type::STR, "ruleset", "the ruleset that applies to the template height: legacy_halving or customized_halving"},
+                                {RPCResult::Type::NUM, "activation_height", "first height at which the customized subsidy schedule applies"},
+                                {RPCResult::Type::NUM, "blocks_until_activation", "number of blocks remaining before the schedule activates for templates"},
+                                {RPCResult::Type::NUM, "next_block_subsidy", "subsidy that applies to the template height, in satoshis"},
+                                {RPCResult::Type::NUM, "next_transition_height", "next height at which the subsidy will change again, or -1 if the terminal subsidy is already active"},
+                                {RPCResult::Type::NUM, "minimum_protocol_version", "minimum peer protocol version expected once the customized halving is active"},
+                                {RPCResult::Type::STR, "warning", "customized-halving-specific mining warning, if any"},
+                            }},
+                        {RPCResult::Type::STR, "warnings", "any network and blockchain warnings relevant to mining"},
                         {RPCResult::Type::STR, "longpollid", "an id to include with a request to longpoll on an update to this template"},
                         {RPCResult::Type::STR, "target", "The hash target"},
                         {RPCResult::Type::NUM_TIME, "mintime", "The minimum timestamp appropriate for the next block time, expressed in " + UNIX_EPOCH_TIME},
@@ -881,6 +893,58 @@ static RPCHelpMan getblocktemplate()
     result.pushKV("transactions", transactions);
     result.pushKV("coinbaseaux", aux);
     result.pushKV("coinbasevalue", (int64_t)pblock->vtx[0]->vout[0].nValue);
+
+    if (consensusParams.HasCustomizedHalvingSchedule()) {
+        const int next_height = pindexPrev->nHeight + 1;
+        const int activation_height = consensusParams.nCustomizedHalvingPhase4StartHeight;
+        const int blocks_until_activation = std::max(0, activation_height - next_height);
+
+        int next_transition_height = -1;
+        for (const int candidate : {consensusParams.nCustomizedHalvingPhase4StartHeight,
+                                    consensusParams.nCustomizedHalvingPhase5StartHeight,
+                                    consensusParams.nCustomizedHalvingPhase6StartHeight,
+                                    consensusParams.nCustomizedHalvingTailStartHeight}) {
+            if (candidate > next_height) {
+                next_transition_height = candidate;
+                break;
+            }
+        }
+
+        const bool active = next_height >= activation_height;
+        std::string halving_warning;
+        if (!active && blocks_until_activation <= 1000) {
+            halving_warning = strprintf("Upgrade miners before customized halving activation at height %d (%d blocks remaining).", activation_height, blocks_until_activation);
+        } else if (active) {
+            halving_warning = strprintf("Customized halving rules are active for this template; miners should use protocol %d or later.", MIN_CUSTOMIZED_HALVING_PEER_PROTO_VERSION);
+        }
+
+        UniValue custom_halving(UniValue::VOBJ);
+        custom_halving.pushKV("active", active);
+        custom_halving.pushKV("ruleset", active ? "customized_halving" : "legacy_halving");
+        custom_halving.pushKV("activation_height", activation_height);
+        custom_halving.pushKV("blocks_until_activation", blocks_until_activation);
+        custom_halving.pushKV("next_block_subsidy", GetBlockSubsidy(next_height, consensusParams));
+        custom_halving.pushKV("next_transition_height", next_transition_height);
+        custom_halving.pushKV("minimum_protocol_version", MIN_CUSTOMIZED_HALVING_PEER_PROTO_VERSION);
+        custom_halving.pushKV("warning", halving_warning);
+        result.pushKV("customized_halving", custom_halving);
+    }
+
+    std::string warnings = GetWarnings(false).original;
+    if (consensusParams.HasCustomizedHalvingSchedule()) {
+        const int next_height = pindexPrev->nHeight + 1;
+        const int activation_height = consensusParams.nCustomizedHalvingPhase4StartHeight;
+        const int blocks_until_activation = std::max(0, activation_height - next_height);
+        if (blocks_until_activation > 0 && blocks_until_activation <= 1000) {
+            if (!warnings.empty()) warnings += ' ';
+            warnings += strprintf("Customized halving activates at height %d (%d blocks remaining).", activation_height, blocks_until_activation);
+        } else if (next_height >= activation_height) {
+            if (!warnings.empty()) warnings += ' ';
+            warnings += "Customized halving rules are active for newly mined blocks.";
+        }
+    }
+    result.pushKV("warnings", warnings);
+
     result.pushKV("longpollid", ::ChainActive().Tip()->GetBlockHash().GetHex() + ToString(nTransactionsUpdatedLast));
     result.pushKV("target", hashTarget.GetHex());
     result.pushKV("mintime", (int64_t)pindexPrev->GetMedianTimePast()+1);
