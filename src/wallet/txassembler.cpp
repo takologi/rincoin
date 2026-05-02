@@ -1,5 +1,6 @@
 #include <wallet/txassembler.h>
 
+#include <chainparams.h>
 #include <consensus/tx_check.h>
 #include <consensus/validation.h>
 #include <policy/policy.h>
@@ -106,6 +107,7 @@ void TxAssembler::CreateTransaction_Locked(
     AssertLockHeld(m_wallet.cs_wallet);
 
     new_tx.tx.nLockTime = GetLocktimeForNewTransaction();
+    new_tx.tx.nVersion  = GetTxVersionForNewTransaction();
 
     m_wallet.AvailableCoins(new_tx.available_coins, true, &new_tx.coin_control, 1, MAX_MONEY, MAX_MONEY, 0);
     UpdateChangeAddress(new_tx);
@@ -518,6 +520,21 @@ uint32_t TxAssembler::GetLocktimeForNewTransaction() const
     }
     assert(locktime < LOCKTIME_THRESHOLD);
     return locktime;
+}
+
+int32_t TxAssembler::GetTxVersionForNewTransaction() const
+{
+    // Choose nVersion according to the RinHash overlay effective at the
+    // height the transaction is intended to enter, i.e. the wallet's tip+1.
+    // If the overlay enforces fork_tx_version, use it; otherwise fall back
+    // to CTransaction::CURRENT_VERSION as before.
+    const Consensus::Params& consensus = Params().GetConsensus();
+    const int next_height = m_wallet.GetLastBlockHeight() + 1;
+    const auto effective = consensus.GetRinHashEffectiveAt(next_height);
+    if (effective.fork_tx_version != 0) {
+        return effective.fork_tx_version;
+    }
+    return CTransaction::CURRENT_VERSION;
 }
 
 bool TxAssembler::IsCurrentForAntiFeeSniping(interfaces::Chain& chain, const uint256& block_hash) const

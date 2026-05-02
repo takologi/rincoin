@@ -99,6 +99,7 @@ private:
     void AddTxInputs(InProcessTx& new_tx) const;
 
     uint32_t GetLocktimeForNewTransaction() const;
+    int32_t  GetTxVersionForNewTransaction() const;
     bool IsCurrentForAntiFeeSniping(interfaces::Chain& chain, const uint256& block_hash) const;
 
     //

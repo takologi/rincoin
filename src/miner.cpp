@@ -176,6 +176,23 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     coinbaseTx.vout[0].scriptPubKey = scriptPubKeyIn;
     coinbaseTx.vout[0].nValue = nFees + GetBlockSubsidy(nHeight, chainparams.GetConsensus());
     coinbaseTx.vin[0].scriptSig = CScript() << nHeight << OP_0;
+
+    // RinHash effective consensus: emit overlay-required outputs / version.
+    {
+        const auto effective = chainparams.GetConsensus().GetRinHashEffectiveAt(nHeight);
+        if (!effective.coinbase_marker.empty()) {
+            const auto& m = effective.coinbase_marker;
+            CTxOut markerOut;
+            markerOut.nValue = 0;
+            markerOut.scriptPubKey = CScript() << OP_RETURN
+                << std::vector<unsigned char>(m.begin(), m.end());
+            coinbaseTx.vout.push_back(markerOut);
+        }
+        if (effective.fork_tx_version != 0) {
+            coinbaseTx.nVersion = effective.fork_tx_version;
+        }
+    }
+
     pblock->vtx[0] = MakeTransactionRef(std::move(coinbaseTx));
     pblocktemplate->vchCoinbaseCommitment = GenerateCoinbaseCommitment(*pblock, pindexPrev, chainparams.GetConsensus());
     pblocktemplate->vTxFees[0] = -nFees;

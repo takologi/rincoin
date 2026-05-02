@@ -1541,6 +1541,35 @@ RPCHelpMan getblockchaininfo()
     VBSoftForkDescPushBack(softforks, "mweb", consensusParams, Consensus::DEPLOYMENT_MWEB);
     obj.pushKV("softforks",             softforks);
 
+    // Effective RinHash overlay at the current tip + the next change ahead, if any.
+    {
+        const int tip_height = ::ChainActive().Height();
+        const auto effective = consensusParams.GetRinHashEffectiveAt(tip_height);
+        UniValue rinhash(UniValue::VOBJ);
+        UniValue eff(UniValue::VOBJ);
+        eff.pushKV("t_cost",                    (uint64_t)effective.pow.t_cost);
+        eff.pushKV("m_cost",                    (uint64_t)effective.pow.m_cost);
+        eff.pushKV("lanes",                     (uint64_t)effective.pow.lanes);
+        eff.pushKV("salt",                      effective.pow.salt);
+        eff.pushKV("coinbase_marker_hex",       HexStr(effective.coinbase_marker));
+        eff.pushKV("fork_tx_version",           (int64_t)effective.fork_tx_version);
+        eff.pushKV("min_peer_protocol_version", (int64_t)effective.min_peer_protocol_version);
+        rinhash.pushKV("height",   tip_height);
+        rinhash.pushKV("effective", eff);
+        UniValue next(UniValue::VNULL);
+        for (const auto& era : consensusParams.rinhash.eras) {
+            if (era.activation_height > tip_height) {
+                UniValue n(UniValue::VOBJ);
+                n.pushKV("activation_height", era.activation_height);
+                n.pushKV("blocks_until",      era.activation_height - tip_height);
+                next = n;
+                break;
+            }
+        }
+        rinhash.pushKV("next_change", next);
+        obj.pushKV("rinhash", rinhash);
+    }
+
     obj.pushKV("warnings", GetWarnings(false).original);
     return obj;
 },
@@ -2644,6 +2673,69 @@ static RPCHelpMan dumptxoutset()
     };
 }
 
+static RPCHelpMan getrinhashparams()
+{
+    return RPCHelpMan{"getrinhashparams",
+        "\nReturn the RinHash consensus table for the active network.\n"
+        "Includes the network's init values, the full list of eras, and the\n"
+        "fully-resolved effective parameters at the requested height (or at\n"
+        "the active chain tip if no height is given).\n",
+        {
+            {"height", RPCArg::Type::NUM, RPCArg::Optional::OMITTED, "Block height at which to resolve the effective parameters; defaults to the active chain tip."},
+        },
+        RPCResult{RPCResult::Type::NONE, "", "object"},
+        RPCExamples{HelpExampleCli("getrinhashparams", "") + HelpExampleRpc("getrinhashparams", "")},
+        [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
+{
+    LOCK(cs_main);
+
+    const Consensus::Params& consensusParams = Params().GetConsensus();
+    int height = ::ChainActive().Height();
+    if (!request.params[0].isNull()) {
+        height = request.params[0].get_int();
+    }
+
+    auto overlay_to_obj = [](const Consensus::Params::RinHashOverlay& o) {
+        UniValue v(UniValue::VOBJ);
+        if (o.has_t_cost)                    v.pushKV("t_cost",                    (uint64_t)o.t_cost);
+        if (o.has_m_cost)                    v.pushKV("m_cost",                    (uint64_t)o.m_cost);
+        if (o.has_lanes)                     v.pushKV("lanes",                     (uint64_t)o.lanes);
+        if (o.has_salt)                      v.pushKV("salt",                      o.salt);
+        if (o.has_coinbase_marker)           v.pushKV("coinbase_marker_hex",       HexStr(o.coinbase_marker));
+        if (o.has_fork_tx_version)           v.pushKV("fork_tx_version",           (int64_t)o.fork_tx_version);
+        if (o.has_min_peer_protocol_version) v.pushKV("min_peer_protocol_version", (int64_t)o.min_peer_protocol_version);
+        return v;
+    };
+
+    UniValue out(UniValue::VOBJ);
+    out.pushKV("chain", Params().NetworkIDString());
+    out.pushKV("height", height);
+    out.pushKV("init", overlay_to_obj(consensusParams.rinhash.init));
+
+    UniValue eras(UniValue::VARR);
+    for (const auto& era : consensusParams.rinhash.eras) {
+        UniValue e = overlay_to_obj(era.overlay);
+        e.pushKV("activation_height", era.activation_height);
+        eras.push_back(e);
+    }
+    out.pushKV("eras", eras);
+
+    const auto effective = consensusParams.GetRinHashEffectiveAt(height);
+    UniValue eff(UniValue::VOBJ);
+    eff.pushKV("t_cost",                    (uint64_t)effective.pow.t_cost);
+    eff.pushKV("m_cost",                    (uint64_t)effective.pow.m_cost);
+    eff.pushKV("lanes",                     (uint64_t)effective.pow.lanes);
+    eff.pushKV("salt",                      effective.pow.salt);
+    eff.pushKV("coinbase_marker_hex",       HexStr(effective.coinbase_marker));
+    eff.pushKV("fork_tx_version",           (int64_t)effective.fork_tx_version);
+    eff.pushKV("min_peer_protocol_version", (int64_t)effective.min_peer_protocol_version);
+    out.pushKV("effective", eff);
+
+    return out;
+},
+    };
+}
+
 void RegisterBlockchainRPCCommands(CRPCTable &t)
 {
 // clang-format off
@@ -2674,6 +2766,7 @@ static const CRPCCommand commands[] =
     { "blockchain",         "preciousblock",          &preciousblock,          {"blockhash"} },
     { "blockchain",         "scantxoutset",           &scantxoutset,           {"action", "scanobjects"} },
     { "blockchain",         "getblockfilter",         &getblockfilter,         {"blockhash", "filtertype"} },
+    { "blockchain",         "getrinhashparams",       &getrinhashparams,       {"height"} },
 
     /* Not shown in help */
     { "hidden",             "invalidateblock",        &invalidateblock,        {"blockhash"} },

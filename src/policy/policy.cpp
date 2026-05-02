@@ -76,7 +76,13 @@ bool IsStandard(const CScript& scriptPubKey, TxoutType& whichType)
 
 bool IsStandardTx(const CTransaction& tx, bool permit_bare_multisig, const CFeeRate& dust_relay_fee, std::string& reason)
 {
-    if (tx.nVersion > CTransaction::MAX_STANDARD_VERSION || tx.nVersion < 1) {
+    // Accept the legacy standard range OR the RinHash post-eras fork
+    // version. The fork version is unconditionally allowed at relay time so
+    // that a single binary handles peers on both sides of the activation
+    // boundary; consensus enforcement (when required at a given height) lives
+    // in ContextualCheckBlock.
+    if ((tx.nVersion > CTransaction::MAX_STANDARD_VERSION || tx.nVersion < 1)
+        && tx.nVersion != CTransaction::RIN_FORK_TX_VERSION) {
         reason = "version";
         return false;
     }

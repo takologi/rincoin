@@ -3812,6 +3812,45 @@ static bool ContextualCheckBlock(const CBlock& block, BlockValidationState& stat
         return false;
     }
 
+    // RinHash effective consensus checks. A rule is enforced iff its field
+    // is present (non-empty / non-zero) in the effective overlay at this
+    // height; before the first overlay that introduces it, the rule is
+    // dormant and historical blocks validate unchanged.
+    {
+        const auto effective = consensusParams.GetRinHashEffectiveAt(nHeight);
+
+        // (1) Required coinbase OP_RETURN marker.
+        if (!effective.coinbase_marker.empty()) {
+            const auto& marker = effective.coinbase_marker;
+            CScript expected;
+            expected << OP_RETURN
+                     << std::vector<unsigned char>(marker.begin(), marker.end());
+
+            bool found = false;
+            if (!block.vtx.empty()) {
+                for (const auto& out : block.vtx[0]->vout) {
+                    if (out.scriptPubKey == expected) { found = true; break; }
+                }
+            }
+            if (!found) {
+                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS,
+                                     "bad-cb-rinhash-marker",
+                                     "missing required RinHash coinbase marker");
+            }
+        }
+
+        // (2) Required transaction nVersion.
+        if (effective.fork_tx_version != 0) {
+            for (const auto& tx : block.vtx) {
+                if (tx->nVersion != effective.fork_tx_version) {
+                    return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS,
+                                         "bad-tx-rinhash-version",
+                                         "transaction nVersion does not match required RinHash fork version");
+                }
+            }
+        }
+    }
+
     return true;
 }
 

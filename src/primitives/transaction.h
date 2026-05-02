@@ -384,6 +384,14 @@ public:
     // MAX_STANDARD_VERSION will be equal.
     static const int32_t MAX_STANDARD_VERSION=2;
 
+    // RinHash post-eras transaction version. ASCII "RIN3" packed big-endian
+    // (0x52, 0x49, 0x4e, 0x33) = 1380794163. Required nVersion of every
+    // transaction in blocks once the RinHash effective overlay sets a non-zero
+    // fork_tx_version. Using a marker version embeds RinHash identity into
+    // every transaction's sighash preimage, providing replay protection
+    // against pre-fork chains without changing the sighash algorithm.
+    static const int32_t RIN_FORK_TX_VERSION = 0x52494e33;
+
     // The local variables are made const to prevent unintended modification
     // without updating the cached hash value. However, CTransaction is not
     // actually immutable; deserialization and assignment are implemented,

@@ -1,0 +1,61 @@
+{
+    "$schema": "./rinhash_consensus.schema.json",
+
+    "networks": {
+        "mainnet": {
+            "_comment": "Rincoin mainnet. init = the world as it is today; eras = future overlays. Era 0 is positioned at 3 * nSubsidyHalvingInterval (= 3 * 210000 = 630000), aligning with the third halving boundary, the point at which the new infrastructure becomes consensus-active.",
+            "init": {
+                "_comment": "Frozen pre-eras parameters; identical to the values that were hardcoded in chainparams.cpp / rinhash.cpp. No coinbase marker, no fork tx version, and no extra peer-protocol-version floor before era 0 activates.",
+                "t_cost": 2,
+                "m_cost": 64,
+                "lanes": 1,
+                "salt": "RinCoinSalt"
+            },
+            "eras": [
+                {
+                    "_comment": "Era 0 introduces the post-eras infrastructure. PoW unchanged. Coinbase OP_RETURN marker (52 49 4e 31 = 'RIN1') and fork tx nVersion (0x52494e33 = 'RIN3' BE = 1380535859) become required from this height; peers below the floor are disconnected.",
+                    "activation_height": 630000,
+                    "coinbase_marker_hex": "52494e31",
+                    "fork_tx_version_decimal": 1380535859,
+                    "min_peer_protocol_version": 70018
+                }
+            ]
+        },
+
+        "testnet": {
+            "_comment": "Testnet. Era 0 sits at 3 * nSubsidyHalvingInterval (= 3 * 1050 = 3150) so functional tests reach it in seconds.",
+            "init": {
+                "t_cost": 2,
+                "m_cost": 64,
+                "lanes": 1,
+                "salt": "RinCoinSalt"
+            },
+            "eras": [
+                {
+                    "activation_height": 3150,
+                    "coinbase_marker_hex": "52494e31",
+                    "fork_tx_version_decimal": 1380535859,
+                    "min_peer_protocol_version": 70018
+                }
+            ]
+        },
+
+        "regtest": {
+            "_comment": "Regtest. Era 0 sits at 3 * nSubsidyHalvingInterval (= 3 * 150 = 450) so regtest functional tests can sweep both regimes within a single run.",
+            "init": {
+                "t_cost": 2,
+                "m_cost": 64,
+                "lanes": 1,
+                "salt": "RinCoinSalt"
+            },
+            "eras": [
+                {
+                    "activation_height": 450,
+                    "coinbase_marker_hex": "52494e31",
+                    "fork_tx_version_decimal": 1380535859,
+                    "min_peer_protocol_version": 70018
+                }
+            ]
+        }
+    }
+}
